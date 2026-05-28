@@ -75,6 +75,31 @@ server_keys.json
 *.log
 logs/
 
+# =============================================================================
+# Unreal Engine 5
+# =============================================================================
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+*.VC.db
+*.VC.VC.opendb
+*.opensdf
+*.sdf
+*.suo
+*.user
+*.sln
+
+# UE5 content assets (binarios grandes — se gestionan con Git LFS o Perforce)
+# Descomentar cuando se configure Git LFS:
+# Content/**/*.uasset
+# Content/**/*.umap
+
+# Archivos generados por UBT
+.idea/
+.vscode/settings.json
+*.xcworkspace
+
 # OS
 .DS_Store
 Thumbs.db
