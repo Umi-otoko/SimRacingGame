@@ -115,14 +115,15 @@ def configure_vehicle_blueprint(bp, mesh, phys, anim):
         mesh_comp = cdo.get_component_by_class(unreal.SkeletalMeshComponent)
         if mesh_comp:
             if mesh:
-                mesh_comp.set_editor_property("SkeletalMesh", mesh)
+                mesh_comp.set_editor_property("SkeletalMeshAsset", mesh)
                 log("  Skeletal mesh assigned.")
-            if phys:
-                mesh_comp.set_editor_property("PhysicsAsset", phys)
-                log("  Physics asset assigned.")
+            # PhysicsAsset comes from the mesh itself — no override needed
             if anim:
-                mesh_comp.set_editor_property("AnimClass", anim)
-                log("  Anim Blueprint assigned.")
+                try:
+                    mesh_comp.set_editor_property("AnimClass", anim)
+                    log("  Anim Blueprint assigned.")
+                except Exception as e:
+                    log(f"  AnimClass skipped (not critical): {e}")
 
         # Wheels via AdditionalOffset (bone-name independent)
         movement = cdo.get_component_by_class(unreal.ChaosWheeledVehicleMovementComponent)
