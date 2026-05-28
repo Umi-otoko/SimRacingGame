@@ -44,6 +44,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "ControlRigModules",
+			"Enabled": true
+		},
+		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
 		}
