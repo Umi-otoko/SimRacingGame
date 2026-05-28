@@ -29,14 +29,14 @@ find_package(ZLIB      REQUIRED)
 
 set(JOLT_DIR "${CMAKE_SOURCE_DIR}/extern/JoltPhysics" CACHE PATH "JoltPhysics root")
 
-if(EXISTS "${JOLT_DIR}/CMakeLists.txt")
+if(EXISTS "${JOLT_DIR}/Build/CMakeLists.txt")
     set(DOUBLE_PRECISION OFF CACHE BOOL "" FORCE)
     set(GENERATE_DEBUG_SYMBOLS ON CACHE BOOL "" FORCE)
     set(CROSS_PLATFORM_DETERMINISTIC ON CACHE BOOL "" FORCE)  # Crítico para netcode
     set(INTERPROCEDURAL_OPTIMIZATION ON CACHE BOOL "" FORCE)
     add_subdirectory("${JOLT_DIR}/Build" jolt_build)
 else()
-    message(WARNING "JoltPhysics no encontrado en ${JOLT_DIR}. Ejecuta: scripts/setup_environment.ps1")
+    message(WARNING "JoltPhysics no encontrado en ${JOLT_DIR}/Build. Ejecuta: scripts/setup_environment.ps1")
 endif()
 
 # =============================================================================
