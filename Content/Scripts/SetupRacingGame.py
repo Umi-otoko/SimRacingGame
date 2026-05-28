@@ -168,18 +168,34 @@ def create_test_level(bp):
     if sun:
         c = sun.get_component_by_class(unreal.DirectionalLightComponent)
         if c:
-            c.set_editor_property("Intensity", 10.0)
-            c.set_editor_property("AtmosphereSunLight", True)
+            try:
+                c.set_editor_property("Intensity", 10.0)
+            except Exception as e:
+                log(f"  Sun Intensity skipped: {e}")
+            for prop in ("bAtmosphereSunLight", "AtmosphereSunLight", "atmosphere_sun_light"):
+                try:
+                    c.set_editor_property(prop, True)
+                    break
+                except Exception:
+                    pass
 
     # Sky
-    unreal.EditorLevelLibrary.spawn_actor_from_class(
-        unreal.SkyAtmosphere, unreal.Vector(0,0,0), unreal.Rotator(0,0,0))
+    try:
+        unreal.EditorLevelLibrary.spawn_actor_from_class(
+            unreal.SkyAtmosphere, unreal.Vector(0,0,0), unreal.Rotator(0,0,0))
+    except Exception as e:
+        log(f"  SkyAtmosphere skipped: {e}")
     sky_l = unreal.EditorLevelLibrary.spawn_actor_from_class(
         unreal.SkyLight, unreal.Vector(0,0,500), unreal.Rotator(0,0,0))
     if sky_l:
         c = sky_l.get_component_by_class(unreal.SkyLightComponent)
         if c:
-            c.set_editor_property("RealTimeCapture", True)
+            for prop in ("RealTimeCapture", "bRealTimeCapture", "real_time_capture"):
+                try:
+                    c.set_editor_property(prop, True)
+                    break
+                except Exception:
+                    pass
 
     # Flat track — scaled cube
     ground = unreal.EditorLevelLibrary.spawn_actor_from_class(
