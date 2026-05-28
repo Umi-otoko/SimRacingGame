@@ -7,6 +7,7 @@
 class UCameraComponent;
 class USpringArmComponent;
 class URacingVehicleMovement;
+class URacingAudio;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
@@ -21,13 +22,13 @@ struct FInputActionValue;
  * - El servidor tiene autoridad sobre las físicas.
  * - El cliente aplica Client-Side Prediction y reconcilia con snapshots del servidor.
  */
-UCLASS(Abstract, Blueprintable)
+UCLASS(Blueprintable)
 class SIMRACINGGAME_API ARacingVehiclePawn : public AWheeledVehiclePawn
 {
     GENERATED_BODY()
 
 public:
-    ARacingVehiclePawn();
+    ARacingVehiclePawn(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
     virtual void BeginPlay() override;
     virtual void Tick(float DeltaTime) override;
@@ -60,6 +61,10 @@ protected:
 
     UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Camera")
     UCameraComponent* CockpitCamera;
+
+    // ---- Audio (síntesis procedural — no requiere assets externos) ----
+    UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Audio")
+    URacingAudio* AudioComp;
 
     // ---- Input (Enhanced Input) ----
     UPROPERTY(EditDefaultsOnly, Category = "Input")
@@ -104,8 +109,11 @@ protected:
     bool bVehicleEnabled = false;
     bool bUsingCockpitCamera = false;
 
-    // ---- Laptime local (cliente mide su propio tiempo para HUD) ----
+    // ---- Laptime local (en el servidor mide el tiempo para la vuelta) ----
     double LapStartTimeLocal = 0.0;
+
+    // ---- Audio state (actualizado en input handlers, leído en Tick) ----
+    float CurrentThrottle = 0.0f;
 
     // ---- Input handlers ----
     void Input_Throttle(const FInputActionValue& Value);

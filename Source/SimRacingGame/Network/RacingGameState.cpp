@@ -13,6 +13,7 @@ void ARacingGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
     DOREPLIFETIME(ARacingGameState, RacePhase);
     DOREPLIFETIME(ARacingGameState, RaceTimeSeconds);
     DOREPLIFETIME(ARacingGameState, bRaceTimerRunning);
+    DOREPLIFETIME(ARacingGameState, CountdownSecondsRemaining);
     DOREPLIFETIME(ARacingGameState, DriverStandings);
 }
 
@@ -36,6 +37,11 @@ void ARacingGameState::TickRaceTimer(float DeltaTime)
 void ARacingGameState::UpdateStandings(const TArray<FDriverStanding>& NewStandings)
 {
     DriverStandings = NewStandings;
+}
+
+void ARacingGameState::SetCountdownSeconds(float Seconds)
+{
+    CountdownSecondsRemaining = Seconds;
 }
 
 void ARacingGameState::OnRep_RacePhase()

@@ -34,19 +34,27 @@ public class SimRacingGame : ModuleRules
             "Json",
             "JsonUtilities",
             "HTTP",
-            "DeveloperSettings"
+            "DeveloperSettings",
+            // Síntesis de audio procedural (URacingAudio : USynthComponent)
+            "Synthesis",
+            "AudioMixer",
         });
 
-        // OpenSSL via vcpkg — rutas absolutas para UBT
+        // OpenSSL via vcpkg — solo se enlaza si está instalado; si no, HMAC queda pendiente
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            PublicAdditionalLibraries.AddRange(new string[]
+            string VcpkgLib = "C:/vcpkg/installed/x64-windows/lib/";
+            string VcpkgBin = "C:/vcpkg/installed/x64-windows/bin/";
+            if (System.IO.File.Exists(VcpkgLib + "libssl.lib"))
             {
-                "C:/vcpkg/installed/x64-windows/lib/libssl.lib",
-                "C:/vcpkg/installed/x64-windows/lib/libcrypto.lib"
-            });
-            RuntimeDependencies.Add("C:/vcpkg/installed/x64-windows/bin/libssl-3-x64.dll");
-            RuntimeDependencies.Add("C:/vcpkg/installed/x64-windows/bin/libcrypto-3-x64.dll");
+                PublicAdditionalLibraries.AddRange(new string[]
+                {
+                    VcpkgLib + "libssl.lib",
+                    VcpkgLib + "libcrypto.lib"
+                });
+                RuntimeDependencies.Add(VcpkgBin + "libssl-3-x64.dll");
+                RuntimeDependencies.Add(VcpkgBin + "libcrypto-3-x64.dll");
+            }
         }
 
         // Raiz del modulo + subdirectorios — necesario para includes cruzados
@@ -57,6 +65,8 @@ public class SimRacingGame : ModuleRules
             System.IO.Path.Combine(ModuleDirectory, "Vehicle"),
             System.IO.Path.Combine(ModuleDirectory, "Setup"),
             System.IO.Path.Combine(ModuleDirectory, "UI"),
+            System.IO.Path.Combine(ModuleDirectory, "Audio"),
+            System.IO.Path.Combine(ModuleDirectory, "Track"),
         });
 
         // Headers Core C++ standalone (TireModel, Setup, Networking)

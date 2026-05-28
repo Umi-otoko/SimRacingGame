@@ -68,15 +68,13 @@ void URacingVehicleMovement::UpdatePacejkaTireForces(float SubstepDt)
 
     for (int32 i = 0; i < 4; ++i)
     {
-        // Determinar si es rueda delantera (0,1) o trasera (2,3)
         const bool bFront = (i < 2);
         SimRacing::PacejkaTireModel* Model = bFront ? FrontTireModel.Get() : RearTireModel.Get();
 
-        // Obtener carga de la rueda desde Chaos
-        float NormalLoad = 3500.0f;  // Default; en prod: obtener de WheelState.NormalLoad
+        // Carga nominal — distribución 45/55 F/R para ~1400 kg
+        const float NormalLoad = bFront ? 3087.0f : 3773.0f;
         WheelLoad[i] = NormalLoad;
 
-        // Construir el estado del contacto
         SimRacing::TireContactPatch Contact;
         Contact.vertical_load_N     = NormalLoad;
         Contact.speed_mps           = FMath::Abs(SpeedMps);
@@ -84,18 +82,13 @@ void URacingVehicleMovement::UpdatePacejkaTireForces(float SubstepDt)
         Contact.lateral_slip_rad    = WheelLateralSlip[i];
         Contact.temperature_celsius = WheelThermo[i].surface_temp;
 
-        // Calcular fuerzas Pacejka
         SimRacing::TireForces Forces = Model->Evaluate(Contact);
 
-        // Actualizar temperatura del neumático
         SimRacing::TireTemperatureModel ThermoModel;
         WheelThermo[i] = ThermoModel.Update(WheelThermo[i], Contact, SubstepDt);
 
-        // Aplicar fuerzas al cuerpo rígido de Chaos via impulso en el punto de contacto
-        // En producción: acceder al FChaosVehicleManager y aplicar el impulso
-        // correctamente en el ChaosVehiclePhysics callback OnApplyTireForces
-        // Aquí se almacenan para que el Chaos solver las pueda usar.
-        // TODO: Conectar con el callback UChaosWheeledVehicleMovementComponent::SimulateTireForces
+        // Pacejka es telemetría por ahora — Chaos maneja su propio modelo de fricción.
+        // TODO: override via SimulateTireForces cuando se integre el callback de Chaos.
         (void)Forces;
     }
 }

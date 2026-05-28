@@ -2,6 +2,8 @@
 #include "RacingGameState.h"
 #include "RacingPlayerState.h"
 #include "RacingVehiclePawn.h"
+#include "RacingCheckpoint.h"
+#include "RacingHUD.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 
@@ -10,18 +12,46 @@ ARacingGameMode::ARacingGameMode()
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.TickInterval = 0.016f;  // ~60 Hz tick del GameMode
 
-    DefaultPawnClass    = ARacingVehiclePawn::StaticClass();
-    GameStateClass      = ARacingGameState::StaticClass();
-    PlayerStateClass    = ARacingPlayerState::StaticClass();
+    // Usar el Blueprint que tiene la mesh asignada; C++ como fallback si no existe
+    static ConstructorHelpers::FClassFinder<APawn> BPVehicle(
+        TEXT("/Game/SimRacing/Blueprints/BP_RacingVehicle"));
+    if (BPVehicle.Succeeded())
+        DefaultPawnClass = BPVehicle.Class;
+    else
+        DefaultPawnClass = ARacingVehiclePawn::StaticClass();
+
+    GameStateClass   = ARacingGameState::StaticClass();
+    PlayerStateClass = ARacingPlayerState::StaticClass();
+    HUDClass         = ARacingHUD::StaticClass();
 }
 
 void ARacingGameMode::BeginPlay()
 {
     Super::BeginPlay();
 
-    // Inicializar la fase de lobby — esperar jugadores
     CurrentPhase = ERacePhase::Lobby;
-    UE_LOG(LogTemp, Log, TEXT("[RacingGameMode] Race initialized. Waiting for players. Max: %d"), MaxPlayers);
+
+    // Auto-detectar cuántos checkpoints hay en el nivel (colocados por el Python script)
+    int32 Found = 0;
+    for (TActorIterator<ARacingCheckpoint> It(GetWorld()); It; ++It)
+        ++Found;
+    if (Found > 0)
+    {
+        TotalCheckpoints = Found;
+        UE_LOG(LogTemp, Log, TEXT("[RacingGameMode] %d checkpoint(s) detectados en el nivel."), TotalCheckpoints);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning,
+               TEXT("[RacingGameMode] No se encontraron checkpoints — usar TotalCheckpoints por defecto (%d). "
+                    "Ejecuta SetupRacingGame.py para colocarlos."), TotalCheckpoints);
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("[RacingGameMode] Race initialized. Max players: %d | Checkpoints: %d"),
+           MaxPlayers, TotalCheckpoints);
+
+    // Auto-start: inicia countdown inmediatamente para que el vehículo se habilite
+    StartRaceSequence();
 }
 
 void ARacingGameMode::Tick(float DeltaTime)
@@ -51,6 +81,7 @@ void ARacingGameMode::StartRaceSequence()
     if (ARacingGameState* GS = GetGameState<ARacingGameState>())
     {
         GS->SetRacePhase(ERacePhase::Countdown);
+        GS->SetCountdownSeconds(CountdownDuration);
     }
 
     UE_LOG(LogTemp, Log, TEXT("[RacingGameMode] Countdown started: %.0f seconds"), CountdownDuration);
@@ -59,6 +90,10 @@ void ARacingGameMode::StartRaceSequence()
 void ARacingGameMode::TickCountdown(float DeltaTime)
 {
     CountdownTimer -= DeltaTime;
+
+    if (ARacingGameState* GS = GetGameState<ARacingGameState>())
+        GS->SetCountdownSeconds(FMath::Max(0.0f, CountdownTimer));
+
     if (CountdownTimer <= 0.0f)
     {
         CurrentPhase = ERacePhase::Racing;
@@ -67,9 +102,16 @@ void ARacingGameMode::TickCountdown(float DeltaTime)
         {
             GS->SetRacePhase(ERacePhase::Racing);
             GS->StartRaceTimer();
+            GS->SetCountdownSeconds(0.0f);
+
+            for (APlayerState* PS : GS->PlayerArray)
+            {
+                if (ARacingPlayerState* RPS = Cast<ARacingPlayerState>(PS))
+                    RPS->StartLapTimer();
+            }
         }
 
-        // Habilitar física de todos los vehículos (estaban bloqueados en countdown)
+        // Enable all vehicles
         for (TActorIterator<ARacingVehiclePawn> It(GetWorld()); It; ++It)
         {
             It->SetVehicleEnabled(true);
@@ -135,4 +177,17 @@ void ARacingGameMode::BroadcastRaceState()
     {
         GS->TickRaceTimer(PrimaryActorTick.TickInterval);
     }
+}
+
+void ARacingGameMode::RegisterCheckpointCrossed(APlayerController* PC, int32 CheckpointIndex)
+{
+    if (!PC || CurrentPhase != ERacePhase::Racing) return;
+    if (CheckpointIndex < 0 || CheckpointIndex >= 32) return;  // Seguridad: máx 32 checkpoints
+
+    uint32& Bits = PlayerCheckpoints.FindOrAdd(PC, 0u);
+    Bits |= (1u << static_cast<uint32>(CheckpointIndex));
+
+    UE_LOG(LogTemp, Verbose,
+           TEXT("[RacingGameMode] CP%d → %s | bits: 0x%08X"),
+           CheckpointIndex, *PC->GetName(), Bits);
 }

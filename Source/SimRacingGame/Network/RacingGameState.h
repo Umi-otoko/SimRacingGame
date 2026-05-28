@@ -49,6 +49,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Race")
     const TArray<FDriverStanding>& GetStandings() const { return DriverStandings; }
 
+    UFUNCTION(BlueprintCallable, Category = "Race")
+    float GetCountdownSecondsRemaining() const { return CountdownSecondsRemaining; }
+
+    void SetCountdownSeconds(float Seconds);
+
 protected:
     UPROPERTY(ReplicatedUsing = OnRep_RacePhase, BlueprintReadOnly, Category = "Race")
     ERacePhase RacePhase = ERacePhase::Lobby;
@@ -58,6 +63,9 @@ protected:
 
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "Race")
     bool bRaceTimerRunning = false;
+
+    UPROPERTY(Replicated, BlueprintReadOnly, Category = "Race")
+    float CountdownSecondsRemaining = 0.0f;
 
     UPROPERTY(ReplicatedUsing = OnRep_Standings, BlueprintReadOnly, Category = "Race")
     TArray<FDriverStanding> DriverStandings;

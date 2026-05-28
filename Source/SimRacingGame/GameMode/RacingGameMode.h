@@ -7,6 +7,7 @@
 
 class ARacingVehiclePawn;
 class ARacingGameState;
+class ARacingCheckpoint;
 
 /**
  * ARacingGameMode
@@ -30,6 +31,9 @@ public:
 
     // Validación de vuelta: verifica que el jugador pasó todos los checkpoints
     bool ValidateLapCompletion(ARacingVehiclePawn* Vehicle) const;
+
+    // Registra que un jugador cruzó un checkpoint en esta vuelta
+    void RegisterCheckpointCrossed(APlayerController* PC, int32 CheckpointIndex);
 
     // Inicia la carrera (transición Lobby → Countdown → Racing)
     UFUNCTION(BlueprintCallable, Category = "Race")
