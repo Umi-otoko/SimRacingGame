@@ -38,6 +38,14 @@
 		{
 			"Name": "GameplayAbilities",
 			"Enabled": false
+		},
+		{
+			"Name": "ChaosModularVehicleExamples",
+			"Enabled": true
+		},
+		{
+			"Name": "PythonScriptPlugin",
+			"Enabled": true
 		}
 	]
 }
