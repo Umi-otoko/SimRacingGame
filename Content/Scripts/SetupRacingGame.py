@@ -26,7 +26,7 @@ MESH_CANDIDATES = [
 ]
 
 # Wheel offsets relative to vehicle root (cm):
-#   (forward, right, up)     ← Unreal X=Forward, Y=Right, Z=Up
+#   (forward, right, up)     <- Unreal X=Forward, Y=Right, Z=Up
 WHEEL_OFFSETS = {
     "FL": (130.0, -75.0, 0.0),
     "FR": (130.0,  75.0, 0.0),
@@ -54,21 +54,8 @@ def find_vehicle_mesh():
             log(f"Using mesh: {mesh_path}")
             phys = unreal.load_asset(phys_path) if phys_path else None
             anim = unreal.load_class(None, anim_path + "_C") if anim_path else None
-            # Print all bone names so developer can see them
-            if hasattr(mesh, "get_skeleton"):
-                skel = mesh.get_skeleton()
-                if skel:
-                    try:
-                        log("Bone names on this skeleton:")
-                        for i in range(1000):
-                            try:
-                                bn = skel.find_bone_index(unreal.Name(str(i)))
-                            except:
-                                break
-                    except Exception as e:
-                        log(f"  (bone enumeration skipped: {e})")
             return mesh, phys, anim
-    log("WARNING: No vehicle mesh found. Blueprint will have no mesh — assign SKM_SportsCar manually.")
+    log("WARNING: No vehicle mesh found. Assign SKM_SportsCar manually in Blueprint.")
     return None, None, None
 
 # ── create Blueprint ──────────────────────────────────────────────────────────
@@ -107,40 +94,39 @@ def configure_vehicle_blueprint(bp, mesh, phys, anim):
     with unreal.ScopedEditorTransaction("Configure BP_RacingVehicle"):
         cdo = unreal.get_default_object(bp.generated_class())
         if not cdo:
-            log("CDO not available yet — mesh/wheel setup skipped (set manually in Blueprint).")
+            log("CDO not available yet — mesh/wheel setup skipped.")
             unreal.EditorAssetLibrary.save_asset(BP_PATH + "/BP_RacingVehicle")
             return
 
-        # Mesh
         mesh_comp = cdo.get_component_by_class(unreal.SkeletalMeshComponent)
         if mesh_comp:
             if mesh:
-                mesh_comp.set_editor_property("SkeletalMeshAsset", mesh)
+                try:
+                    mesh_comp.set_editor_property("SkeletalMeshAsset", mesh)
+                except Exception:
+                    mesh_comp.set_editor_property("SkeletalMesh", mesh)
                 log("  Skeletal mesh assigned.")
-            # PhysicsAsset comes from the mesh itself — no override needed
             if anim:
                 try:
                     mesh_comp.set_editor_property("AnimClass", anim)
                     log("  Anim Blueprint assigned.")
                 except Exception as e:
-                    log(f"  AnimClass skipped (not critical): {e}")
+                    log(f"  AnimClass skipped: {e}")
 
-        # Wheels via AdditionalOffset (bone-name independent)
         movement = cdo.get_component_by_class(unreal.ChaosWheeledVehicleMovementComponent)
         if movement:
             wheel_defs = [
-                ("",  front_cls, WHEEL_OFFSETS["FL"]),
-                ("",  front_cls, WHEEL_OFFSETS["FR"]),
-                ("",  rear_cls,  WHEEL_OFFSETS["RL"]),
-                ("",  rear_cls,  WHEEL_OFFSETS["RR"]),
+                ("", front_cls, WHEEL_OFFSETS["FL"]),
+                ("", front_cls, WHEEL_OFFSETS["FR"]),
+                ("", rear_cls,  WHEEL_OFFSETS["RL"]),
+                ("", rear_cls,  WHEEL_OFFSETS["RR"]),
             ]
             setups = unreal.Array(unreal.ChaosWheelSetup)
             for bone_name, cls, (fx, fy, fz) in wheel_defs:
                 ws = unreal.ChaosWheelSetup()
                 ws.set_editor_property("WheelClass", cls)
                 ws.set_editor_property("BoneName", bone_name)
-                ws.set_editor_property("AdditionalOffset",
-                                       unreal.Vector(fx, fy, fz))
+                ws.set_editor_property("AdditionalOffset", unreal.Vector(fx, fy, fz))
                 setups.append(ws)
             movement.set_editor_property("WheelSetups", setups)
             log("  Wheel setups configured (4 wheels, offset-based).")
@@ -150,75 +136,84 @@ def configure_vehicle_blueprint(bp, mesh, phys, anim):
 
 # ── create test level ─────────────────────────────────────────────────────────
 
+def _new_level(path):
+    """Create a new level at path, trying LevelEditorSubsystem first."""
+    try:
+        ss = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+        if ss:
+            ss.new_level(path)
+            return
+    except Exception:
+        pass
+    unreal.EditorLevelLibrary.new_level(path)
+
+def _set_prop(obj, *names, value):
+    """Try multiple property name variants; ignore all failures."""
+    for name in names:
+        try:
+            obj.set_editor_property(name, value)
+            return True
+        except Exception:
+            pass
+    return False
+
+def _spawn(cls, loc, rot):
+    return unreal.EditorLevelLibrary.spawn_actor_from_class(cls, loc, rot)
+
 def create_test_level(bp):
     map_full = MAP_PATH + "/TestTrack"
-    if asset_exists(map_full):
-        log("TestTrack already exists.")
-        return
+    temp_map = MAP_PATH + "/_SetupTemp"
 
-    unreal.EditorLevelLibrary.new_level(map_full)
+    if asset_exists(map_full):
+        log("TestTrack exists — deleting stale level and recreating...")
+        # Open a throw-away level so TestTrack is no longer the active level
+        _new_level(temp_map)
+        unreal.EditorAssetLibrary.delete_asset(map_full)
+        # Clean up temp
+        if asset_exists(temp_map):
+            try:
+                unreal.EditorAssetLibrary.delete_asset(temp_map)
+            except Exception:
+                pass
+
+    _new_level(map_full)
     log("TestTrack created.")
 
     # Sun
-    sun = unreal.EditorLevelLibrary.spawn_actor_from_class(
-        unreal.DirectionalLight,
-        unreal.Vector(0, 0, 1000),
-        unreal.Rotator(-50, -100, 0)
-    )
+    sun = _spawn(unreal.DirectionalLight, unreal.Vector(0, 0, 1000), unreal.Rotator(-50, -100, 0))
     if sun:
         c = sun.get_component_by_class(unreal.DirectionalLightComponent)
         if c:
-            try:
-                c.set_editor_property("Intensity", 10.0)
-            except Exception as e:
-                log(f"  Sun Intensity skipped: {e}")
-            for prop in ("bAtmosphereSunLight", "AtmosphereSunLight", "atmosphere_sun_light"):
-                try:
-                    c.set_editor_property(prop, True)
-                    break
-                except Exception:
-                    pass
+            _set_prop(c, "Intensity", value=10.0)
+            _set_prop(c, "bAtmosphereSunLight", "AtmosphereSunLight", value=True)
 
     # Sky
     try:
-        unreal.EditorLevelLibrary.spawn_actor_from_class(
-            unreal.SkyAtmosphere, unreal.Vector(0,0,0), unreal.Rotator(0,0,0))
-    except Exception as e:
-        log(f"  SkyAtmosphere skipped: {e}")
-    sky_l = unreal.EditorLevelLibrary.spawn_actor_from_class(
-        unreal.SkyLight, unreal.Vector(0,0,500), unreal.Rotator(0,0,0))
+        _spawn(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0))
+    except Exception:
+        pass
+    sky_l = _spawn(unreal.SkyLight, unreal.Vector(0, 0, 500), unreal.Rotator(0, 0, 0))
     if sky_l:
         c = sky_l.get_component_by_class(unreal.SkyLightComponent)
         if c:
-            for prop in ("RealTimeCapture", "bRealTimeCapture", "real_time_capture"):
-                try:
-                    c.set_editor_property(prop, True)
-                    break
-                except Exception:
-                    pass
+            _set_prop(c, "RealTimeCapture", "bRealTimeCapture", value=True)
 
-    # Flat track — scaled cube
-    ground = unreal.EditorLevelLibrary.spawn_actor_from_class(
-        unreal.StaticMeshActor, unreal.Vector(0,0,-50), unreal.Rotator(0,0,0))
+    # Ground — flat 200m x 200m cube
+    ground = _spawn(unreal.StaticMeshActor, unreal.Vector(0, 0, -50), unreal.Rotator(0, 0, 0))
     if ground:
         c = ground.get_component_by_class(unreal.StaticMeshComponent)
         if c:
             cube = unreal.load_asset("/Engine/BasicShapes/Cube")
             if cube:
-                c.set_editor_property("StaticMesh", cube)
+                _set_prop(c, "StaticMesh", value=cube)
         ground.set_actor_scale3d(unreal.Vector(200.0, 200.0, 0.5))
 
     # Player Start
-    unreal.EditorLevelLibrary.spawn_actor_from_class(
-        unreal.PlayerStart, unreal.Vector(0,0,200), unreal.Rotator(0,0,0))
+    _spawn(unreal.PlayerStart, unreal.Vector(0, 0, 200), unreal.Rotator(0, 0, 0))
 
     # Vehicle
     if bp and bp.generated_class():
-        v = unreal.EditorLevelLibrary.spawn_actor_from_class(
-            bp.generated_class(),
-            unreal.Vector(0, 0, 150),
-            unreal.Rotator(0, 0, 0)
-        )
+        v = _spawn(bp.generated_class(), unreal.Vector(0, 0, 150), unreal.Rotator(0, 0, 0))
         if v:
             log("  Vehicle placed in TestTrack.")
 
@@ -229,7 +224,7 @@ def create_test_level(bp):
 
 def main():
     log("=" * 50)
-    log("SimRacingGame first-time setup starting...")
+    log("SimRacingGame setup starting...")
     log("=" * 50)
 
     make_dirs(ASSET_BASE, WHEEL_PATH, BP_PATH, MAP_PATH)
