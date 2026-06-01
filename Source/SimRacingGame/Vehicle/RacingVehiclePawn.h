@@ -115,6 +115,11 @@ protected:
     // ---- Audio state (actualizado en input handlers, leído en Tick) ----
     float CurrentThrottle = 0.0f;
 
+    // ---- Fallback auto-enable (por si el GameMode no llama SetVehicleEnabled) ----
+    FTimerHandle EnableFallbackTimer;
+    // Habilita el vehículo si todavía está desactivado cuando suena el timer
+    void TryAutoEnable();
+
     // ---- Input handlers ----
     void Input_Throttle(const FInputActionValue& Value);
     void Input_Brake(const FInputActionValue& Value);

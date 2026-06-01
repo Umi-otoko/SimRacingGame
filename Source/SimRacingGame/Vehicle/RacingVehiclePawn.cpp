@@ -87,6 +87,25 @@ void ARacingVehiclePawn::BeginPlay()
     Super::BeginPlay();
     SetVehicleEnabled(false);  // Se habilita cuando el GameMode arranca la carrera
     LapStartTimeLocal = FPlatformTime::Seconds();
+
+    // Seguro de respaldo: si el GameMode no llama a SetVehicleEnabled(true)
+    // (countdown = 3s) habilitamos el vehículo a los 5s automáticamente.
+    // Esto garantiza que el coche SIEMPRE sea controlable en PIE / demos.
+    GetWorldTimerManager().SetTimer(
+        EnableFallbackTimer, this,
+        &ARacingVehiclePawn::TryAutoEnable,
+        5.0f, false);
+}
+
+void ARacingVehiclePawn::TryAutoEnable()
+{
+    if (!bVehicleEnabled)
+    {
+        SetVehicleEnabled(true);
+        UE_LOG(LogTemp, Warning,
+            TEXT("[RacingVehiclePawn] TryAutoEnable: el GameMode no habilitó el vehículo — "
+                 "habilitando por fallback. Verifica que RacingGameMode esté activo en el nivel."));
+    }
 }
 
 void ARacingVehiclePawn::Tick(float DeltaTime)

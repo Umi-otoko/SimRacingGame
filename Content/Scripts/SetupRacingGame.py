@@ -20,11 +20,28 @@ MESH_CANDIDATES = [
     ("/ControlRigModules/Modules/Meshes/SKM_Car_Template", None, None),
 ]
 
+# Cuando True, el script borra y recrea BP_RacingVehicle para aplicar
+# la configuración correcta de ruedas (nombres de bones + offsets).
+# Cambiar a False una vez que el BP esté configurado correctamente.
+FORCE_RECONFIGURE_BP = True
+
+# Nombres de bones del esqueleto SportsCar_Skeleton que corresponden a los hubs de rueda.
+# Extraídos del asset Sport_Car_Skeleton.uasset (Phys_Wheel_FL/FR/BL/BR).
+# OJO: el esqueleto usa "BL/BR" (Back) no "RL/RR" (Rear).
+WHEEL_BONE_NAMES = {
+    "FL": "Phys_Wheel_FL",
+    "FR": "Phys_Wheel_FR",
+    "RL": "Phys_Wheel_BL",   # B = Back = trasero izquierdo
+    "RR": "Phys_Wheel_BR",   # B = Back = trasero derecho
+}
+
+# Offset adicional al bone position (en cm). Con los bones correctos,
+# el offset es (0,0,0) — el bone ya está en el centro del hub.
 WHEEL_OFFSETS = {
-    "FL": (130.0, -75.0, 0.0),
-    "FR": (130.0,  75.0, 0.0),
-    "RL": (-130.0, -75.0, 0.0),
-    "RR": (-130.0,  75.0, 0.0),
+    "FL": (0.0, 0.0, 0.0),
+    "FR": (0.0, 0.0, 0.0),
+    "RL": (0.0, 0.0, 0.0),
+    "RR": (0.0, 0.0, 0.0),
 }
 
 def log(msg):
@@ -53,14 +70,83 @@ def find_vehicle_mesh():
 
 # ── Blueprint del vehículo ────────────────────────────────────────────────────
 
+def _auto_bone_names(mesh):
+    """
+    Detecta los bones de rueda escaneando el skeleton.
+    Usa WHEEL_BONE_NAMES como fallback hardcodeado si la detección falla.
+    IMPORTANTE: CanCreateVehicle() devuelve false si BoneName == NAME_None.
+    """
+    if not mesh:
+        log("  _auto_bone_names: sin mesh — usando hardcoded.")
+        return WHEEL_BONE_NAMES.copy()
+
+    try:
+        sk = mesh.get_skeleton()
+        if not sk:
+            log("  _auto_bone_names: skeleton no encontrado — usando hardcoded.")
+            return WHEEL_BONE_NAMES.copy()
+
+        orig = []
+        for i in range(sk.get_num_bones()):
+            orig.append(str(sk.get_bone_name(i)))
+        lower = [n.lower() for n in orig]
+        log(f"  Skeleton: {len(orig)} bones — {', '.join(orig[:12])}{'...' if len(orig)>12 else ''}")
+
+        def pick(*keywords):
+            """Primero exact match, luego substring (case-insensitive)."""
+            for kw in keywords:
+                kl = kw.lower()
+                # Exact match
+                try:
+                    idx = lower.index(kl)
+                    return orig[idx]
+                except ValueError:
+                    pass
+            for kw in keywords:
+                kl = kw.lower()
+                # Substring match
+                for i, bl in enumerate(lower):
+                    if kl in bl:
+                        return orig[i]
+            return ""
+
+        names = {
+            "FL": pick("phys_wheel_fl", "wheel_fl", "fl_wheel", "wheel_front_left", "front_left"),
+            "FR": pick("phys_wheel_fr", "wheel_fr", "fr_wheel", "wheel_front_right", "front_right"),
+            # SportsCar usa BL/BR (Back) para trasero; también probamos RL/RR
+            "RL": pick("phys_wheel_bl", "wheel_bl", "bl_wheel", "phys_wheel_rl", "wheel_rl", "wheel_rear_left", "rear_left"),
+            "RR": pick("phys_wheel_br", "wheel_br", "br_wheel", "phys_wheel_rr", "wheel_rr", "wheel_rear_right", "rear_right"),
+        }
+
+        for pos, n in names.items():
+            if n:
+                log(f"  Bone {pos}: '{n}' ✓")
+            else:
+                fallback = WHEEL_BONE_NAMES.get(pos, "")
+                log(f"  Bone {pos}: NOT FOUND — fallback hardcoded: '{fallback}'")
+                names[pos] = fallback
+
+        return names
+
+    except Exception as e:
+        log(f"  _auto_bone_names excepción: {e} — usando hardcoded.")
+        return WHEEL_BONE_NAMES.copy()
+
+
 def create_vehicle_blueprint():
     full = BP_PATH + "/BP_RacingVehicle"
+
     if asset_exists(full):
-        # Ya existe — NO intentar reconfigurar el CDO después de un recompile
-        # (acceder al CDO post-Live Coding puede crashear el editor con array OOB).
-        # Si necesitas reconfigurar, borra BP_RacingVehicle desde el Content Browser.
-        log("BP_RacingVehicle ya existe — omitiendo reconfiguración (CDO unsafe post-recompile).")
-        return None   # None = "ya existe, no reconfigurar"
+        if FORCE_RECONFIGURE_BP:
+            # Borrar y recrear para que la configuración de ruedas se aplique limpiamente.
+            # Esto es seguro porque el nivel se recrea en create_test_level().
+            log("BP_RacingVehicle existe — borrando para reconfigurar (FORCE_RECONFIGURE_BP=True)...")
+            unreal.EditorAssetLibrary.delete_asset(full)
+            log("  BP_RacingVehicle borrado.")
+        else:
+            # Modo conservador: no tocar CDO post-Live Coding (puede crashear con array OOB).
+            log("BP_RacingVehicle ya existe — omitiendo (FORCE_RECONFIGURE_BP=False).")
+            return None
 
     parent = unreal.load_class(None, "/Script/SimRacingGame.RacingVehiclePawn")
     if not parent:
@@ -77,6 +163,7 @@ def create_vehicle_blueprint():
     log("BP_RacingVehicle creado.")
     return bp
 
+
 def configure_vehicle_blueprint(bp, mesh, phys, anim):
     if not bp or not bp.generated_class():
         return
@@ -86,6 +173,9 @@ def configure_vehicle_blueprint(bp, mesh, phys, anim):
     if not front_cls or not rear_cls:
         log("ERROR: clases de rueda no encontradas.")
         return
+
+    # Auto-detectar bones de rueda desde el skeleton
+    bone_names = _auto_bone_names(mesh)
 
     with unreal.ScopedEditorTransaction("Configure BP_RacingVehicle"):
         cdo = unreal.get_default_object(bp.generated_class())
@@ -119,19 +209,24 @@ def configure_vehicle_blueprint(bp, mesh, phys, anim):
 
         movement = cdo.get_component_by_class(unreal.ChaosWheeledVehicleMovementComponent)
         if movement:
+            # Cada WheelSetup DEBE tener BoneName != "" o CanCreateVehicle() devuelve false
+            # y el vehículo físico nunca se crea (el coche se ve pero no se mueve).
             wheel_defs = [
-                (front_cls, WHEEL_OFFSETS["FL"]),
-                (front_cls, WHEEL_OFFSETS["FR"]),
-                (rear_cls,  WHEEL_OFFSETS["RL"]),
-                (rear_cls,  WHEEL_OFFSETS["RR"]),
+                (front_cls, "FL"),
+                (front_cls, "FR"),
+                (rear_cls,  "RL"),
+                (rear_cls,  "RR"),
             ]
             setups = unreal.Array(unreal.ChaosWheelSetup)
-            for cls, (fx, fy, fz) in wheel_defs:
-                ws = unreal.ChaosWheelSetup()
+            for cls, pos in wheel_defs:
+                ws    = unreal.ChaosWheelSetup()
+                bname = bone_names[pos]
+                ox, oy, oz = WHEEL_OFFSETS[pos]
                 ws.set_editor_property("WheelClass", cls)
-                ws.set_editor_property("BoneName", "")
-                ws.set_editor_property("AdditionalOffset", unreal.Vector(fx, fy, fz))
+                ws.set_editor_property("BoneName",   bname)
+                ws.set_editor_property("AdditionalOffset", unreal.Vector(ox, oy, oz))
                 setups.append(ws)
+                log(f"  WheelSetup {pos}: bone='{bname}' offset=({ox},{oy},{oz})")
             movement.set_editor_property("WheelSetups", setups)
 
             try:
@@ -153,7 +248,7 @@ def configure_vehicle_blueprint(bp, mesh, phys, anim):
             except Exception as e:
                 log(f"  Transmisión config omitida: {e}")
 
-            log("  Ruedas configuradas.")
+            log("  Ruedas configuradas con bones correctos.")
 
     unreal.EditorAssetLibrary.save_asset(BP_PATH + "/BP_RacingVehicle")
     log("BP_RacingVehicle guardado.")
