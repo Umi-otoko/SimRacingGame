@@ -1,5 +1,6 @@
 #include "RacingVehiclePawn.h"
 #include "RacingVehicleMovement.h"
+#include "RacingVehicleWheel.h"
 #include "RacingAudio.h"
 #include "RacingGameMode.h"
 #include "Camera/CameraComponent.h"
@@ -49,6 +50,31 @@ ARacingVehiclePawn::ARacingVehiclePawn(const FObjectInitializer& ObjectInitializ
     AudioComp = CreateDefaultSubobject<URacingAudio>(TEXT("EngineAudio"));
     AudioComp->SetupAttachment(GetMesh());
     AudioComp->bAutoActivate = true;
+
+    // ── WheelSetups en C++ ─────────────────────────────────────────────────────
+    // CRÍTICO: CanCreateVehicle() devuelve false si BoneName == NAME_None,
+    // lo que impide que Chaos cree la simulación del vehículo y el coche no se mueve.
+    // Bones extraídos de SportsCar_Skeleton.uasset (Phys_Wheel_FL/FR/BL/BR).
+    // Nota: el skeleton usa "BL/BR" (Back) para el eje trasero, no "RL/RR".
+    if (UChaosWheeledVehicleMovementComponent* VM =
+            Cast<UChaosWheeledVehicleMovementComponent>(GetVehicleMovementComponent()))
+    {
+        auto MakeWheelSetup = [](TSubclassOf<UChaosVehicleWheel> Cls, const TCHAR* Bone)
+        {
+            FChaosWheelSetup WS;
+            WS.WheelClass = Cls;
+            WS.BoneName   = FName(Bone);
+            // AdditionalOffset queda en (0,0,0): los bones ya están en el hub de rueda
+            return WS;
+        };
+
+        VM->WheelSetups = {
+            MakeWheelSetup(URacingWheelFront::StaticClass(), TEXT("Phys_Wheel_FL")),
+            MakeWheelSetup(URacingWheelFront::StaticClass(), TEXT("Phys_Wheel_FR")),
+            MakeWheelSetup(URacingWheelRear::StaticClass(),  TEXT("Phys_Wheel_BL")),
+            MakeWheelSetup(URacingWheelRear::StaticClass(),  TEXT("Phys_Wheel_BR")),
+        };
+    }
 
     // Cockpit camera — vista desde el piloto
     CockpitCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("CockpitCamera"));
