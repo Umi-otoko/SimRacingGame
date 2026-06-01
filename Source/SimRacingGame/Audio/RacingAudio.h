@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SynthComponent.h"
+#include "Components/SynthComponent.h"
 #include "RacingAudio.generated.h"
 
 /**
@@ -48,7 +48,8 @@ public:
 
 protected:
     virtual int32 OnGenerateAudio(float* OutAudio, int32 NumSamples) override;
-    virtual void  OnBeginGenerate() override;
+    // Init recibe el SampleRate del audio engine antes de empezar a generar
+    virtual bool  Init(int32& SampleRate) override;
 
 private:
     // ---- Shared (written on game thread, read on audio thread) ----

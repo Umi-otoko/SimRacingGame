@@ -50,10 +50,6 @@
 		{
 			"Name": "PythonScriptPlugin",
 			"Enabled": true
-		},
-		{
-			"Name": "Synthesis",
-			"Enabled": true
 		}
 	]
 }

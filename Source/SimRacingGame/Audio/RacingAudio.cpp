@@ -6,10 +6,11 @@ URacingAudio::URacingAudio()
     bAutoActivate = true;  // empieza a generar audio al BeginPlay
 }
 
-void URacingAudio::OnBeginGenerate()
+bool URacingAudio::Init(int32& SampleRate)
 {
-    CachedSR = GetSampleRate();
-    if (CachedSR <= 0.0f) CachedSR = 48000.0f;
+    // El audio engine nos pasa el SampleRate antes de empezar OnGenerateAudio
+    CachedSR = SampleRate > 0 ? static_cast<float>(SampleRate) : 48000.0f;
+    return true;  // true = listo para generar audio
 }
 
 // =============================================================================

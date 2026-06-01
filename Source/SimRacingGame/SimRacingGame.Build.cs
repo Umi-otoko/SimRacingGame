@@ -36,7 +36,7 @@ public class SimRacingGame : ModuleRules
             "HTTP",
             "DeveloperSettings",
             // Síntesis de audio procedural (URacingAudio : USynthComponent)
-            "Synthesis",
+            // En UE5.7 USynthComponent vive en AudioMixer (no en Synthesis)
             "AudioMixer",
         });
 

@@ -1,5 +1,6 @@
 #include "RacingFinishLine.h"
 #include "RacingVehiclePawn.h"
+#include "Components/BoxComponent.h"
 
 ARacingFinishLine::ARacingFinishLine()
 {
