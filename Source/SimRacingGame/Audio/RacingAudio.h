@@ -19,7 +19,7 @@ class SIMRACINGGAME_API URacingAudio : public USynthComponent
     GENERATED_BODY()
 
 public:
-    URacingAudio();
+    URacingAudio(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
     /** Llamado cada game tick desde el vehicle pawn */
     void SetRPM(float RPM);

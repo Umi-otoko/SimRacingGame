@@ -1,6 +1,7 @@
 #include "RacingAudio.h"
 
-URacingAudio::URacingAudio()
+URacingAudio::URacingAudio(const FObjectInitializer& ObjectInitializer)
+    : Super(ObjectInitializer)
 {
     PrimaryComponentTick.bCanEverTick = false;
     bAutoActivate = true;  // empieza a generar audio al BeginPlay
